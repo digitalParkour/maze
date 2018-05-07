@@ -1,0 +1,26 @@
+<html>
+<head>
+    <title>
+        Maze
+    </title>
+    <link rel="stylesheet" href="C:\inetpub\wwwroot\MazeApp\maze.css" type="text/css"/>
+</head>
+<body>
+
+    <canvas id="maze" width="800" height="600" style="border:3px solid #d3d3d3;"></canvas>
+
+    <script src="C:\inetpub\wwwroot\MazeApp\utils.js"></script>
+    <script src="C:\inetpub\wwwroot\MazeApp\mazeCell.js"></script>
+    <script src="C:\inetpub\wwwroot\MazeApp\maze.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", init, false);
+
+        function init() {
+            var canvas = document.getElementById("maze");
+
+            var maze = new Maze(canvas, 10, 25);
+            maze.Draw();
+        }
+    </script>
+</body>
+</html>
