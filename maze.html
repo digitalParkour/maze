@@ -6,9 +6,10 @@
     <link rel="stylesheet" href="C:\inetpub\wwwroot\MazeApp\maze.css" type="text/css"/>
 </head>
 <body>
-
-    <canvas id="maze" width="800" height="600" style="border:3px solid #d3d3d3;"></canvas>
-
+    <div id="viewport">
+        <canvas id="maze" class="maze"></canvas>
+        <canvas id="user" class="solution"></canvas>
+    </div>
     <script src="C:\inetpub\wwwroot\MazeApp\utils.js"></script>
     <script src="C:\inetpub\wwwroot\MazeApp\mazeCell.js"></script>
     <script src="C:\inetpub\wwwroot\MazeApp\maze.js"></script>
@@ -17,9 +18,7 @@
 
         function init() {
             var canvas = document.getElementById("maze");
-
-            var maze = new Maze(canvas, 10, 25);
-            maze.Draw();
+            var maze = new Maze(canvas, 30);
         }
     </script>
 </body>
