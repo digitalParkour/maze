@@ -8,7 +8,11 @@
 <body>
     <div id="viewport">
         <canvas id="maze" class="maze"></canvas>
-        <canvas id="user" class="solution"></canvas>
+        <canvas id="user0" class="ui"></canvas>
+        <canvas id="user1" class="ui"></canvas>
+        <canvas id="user2" class="ui"></canvas>
+        <canvas id="user3" class="ui"></canvas>
+        <canvas id="start" class="ui"></canvas>
     </div>
     <script src="C:\inetpub\wwwroot\MazeApp\utils.js"></script>
     <script src="C:\inetpub\wwwroot\MazeApp\mazeCell.js"></script>
@@ -18,7 +22,7 @@
 
         function init() {
             var canvas = document.getElementById("maze");
-            var maze = new Maze(canvas, 30);
+            var maze = new Maze(canvas, 9, 1);
         }
     </script>
 </body>

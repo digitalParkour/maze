@@ -1,16 +1,24 @@
 // size = units tall
 // scale = pixel width of line
-function Maze(canvas, size) {
+function Maze(canvas, size, players) {
     var _self = this;
     _self.canvas = canvas;
-    _self.ui = document.getElementById("user");
+
+    _self.userCanvas = [];
+    _self.userPath = [];
+    _self.userPos = [];
+    _self.userOffset = [];
+
+    _self.numPlayers = players;
 
     _self.totalUnitsY = 0;
     _self.totalUnitsX = 0;
+    _self.circleR = 0;
 
     _self.lineWidth = 0;
     _self.boxSize = 0;
     _self.midOffset = 0;
+    _self.userLineWidth = 0;
 
     _self.Draw = _draw;
     _self.RenderBox = _renderBox;
@@ -30,10 +38,20 @@ function Maze(canvas, size) {
     function init(size) {
         _self.hasAnswer = false;
         _self.isSolved = false;
-        // Calculate size
-        var w = window.innerWidth-20;
-        var h = window.innerHeight-20;
+        var c = _self.canvas;
 
+        // Calculate size
+        var w = window.innerWidth - 20;
+        var h = window.innerHeight - 20;
+        
+        // Set Canvas width and height;
+        c.height = h;
+        c.width = w;
+
+        var r = Math.floor(h / size / 2);
+        h -= 2*r;
+        w -= 2*r;        
+        _self.circleR = r;
         _self.boxSize = Math.floor(h/size);
 
         _self.totalUnitsY = size;
@@ -41,59 +59,133 @@ function Maze(canvas, size) {
 
         _self.lineWidth = Math.floor(_self.boxSize / 2);
         _self.midOffset = Math.round(_self.boxSize / 2);
-                
+
+        _self.userLineWidth = Math.floor(_self.lineWidth / _self.numPlayers);
+        for (var u = 0; u < _self.numPlayers; u++) {
+            var uOff = _self.midOffset - Math.floor(_self.lineWidth / 2) + (u * _self.userLineWidth);
+            uOff += Math.floor(_self.userLineWidth / 2);
+            _self.userOffset.push(uOff);
+        }
+        
         initCells();
         _self.Draw();
+
+        initStart();
+        initUI();
 
         if (_self.auto) {
             _self.buildTimer = setInterval(grow, _self.timer);
         } else
         {
-            _self.ui.addEventListener("mousedown", grow, false);
+            document.getElementById("start").addEventListener("mousedown", grow, false);
         }
 
-        initUI();
+    }
+    function initStart() {
+
+        var c = document.getElementById("start");
+        c.width = _self.canvas.width;
+        c.height = _self.canvas.height;
+        var r = _self.circleR;
+
+        var ctx = c.getContext("2d");
+        if (_self.numPlayers == 1) {
+            ctx.beginPath();
+            ctx.arc(r, r, r, 0, 2 * Math.PI, false);
+            ctx.fillStyle = COLORS[0];
+            ctx.fill();
+            return;
+        }
+
+        // draw start circle
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(r, r, r, 0, 2 * Math.PI, false);
+        ctx.clip();
+        for (var u = 0; u < _self.numPlayers; u++) {
+        // draw blue circle inside clipping region
+            ctx.beginPath();
+            var wide = _self.userLineWidth * 3;
+            ctx.lineWidth = wide;
+            var offset = Math.floor(((-1 * _self.numPlayers * wide) + (u * _self.numPlayers * wide)) / 1.5);
+            if (u == 2) {
+                offset = -r;
+                ctx.lineWidth = _self.userLineWidth * 2.5;
+            }
+            ctx.moveTo(-r , offset);
+            ctx.lineTo(4 * r -r, 4 * r + offset);
+            ctx.strokeStyle = COLORS[u];
+            ctx.stroke();
+        }
+        
+        /*
+         * restore() restores the canvas ctx to its original state
+         * before we defined the clipping region
+         */
+        ctx.restore();
     }
     function initUI() {
+        _self.userCanvas = new Array(4);
+        _self.userPath = new Array(4); // list of points to draw
+        _self.userPos = new Array(4);
 
-        _self.ui.width = _self.canvas.width;
-        _self.ui.height = _self.canvas.height;
-        _self.userPath = [new Point(0,0)]; // list of points to draw
-        _self.userX = 0;
-        _self.userY = 0;
-        
-        drawUserPath();
+        for (var u = 0; u < 4; u++) {
+            var canvasUI = document.getElementById("user" + u);
+            canvasUI.width = _self.canvas.width;
+            canvasUI.height = _self.canvas.height;
+            _self.userCanvas[u] = canvasUI;
+            _self.userPos[u] = new Point(0, 0);
+            _self.userPath[u] = [new Point(0, 0)];
 
+            if (u < _self.numPlayers)
+                drawUserPath(u);
+        }
+                
         document.onkeydown = function (e) {
             e = e || window.event;
             if (_self.isSolved)
                 return;
-            var cell = _self.Cells[_self.userX][_self.userY];
-            switch (e.which || e.keyCode) {
-                case 37: // left
-                    moveUI(cell, LEFT);
-                    break;
+            var uIndex = -1;
+            var dir;
+            var key = e.which || e.keyCode;
+            loopUsers:
+            for (var u = 0; u < _self.numPlayers; u++)
+            {
+                switch (key) {
+                    case CONTROLS[u].left: // left
+                        uIndex = u;
+                        dir = LEFT;
+                        break loopUsers;
 
-                case 38: // up
-                    moveUI(cell, TOP);
-                    break;
+                    case CONTROLS[u].up: // up
+                        uIndex = u;
+                        dir = TOP;
+                        break loopUsers;
 
-                case 39: // right
-                    moveUI(cell, RIGHT);
-                    break;
+                    case CONTROLS[u].right: // right
+                        uIndex = u;
+                        dir = RIGHT;
+                        break loopUsers;
 
-                case 40: // down
-                    moveUI(cell, BOTTOM);
-                    break;
-
-                default: return; // exit this handler for other keys
+                    case CONTROLS[u].down: // down
+                        uIndex = u;
+                        dir = BOTTOM;
+                        break loopUsers;
+                }
             }
+            
+            if (uIndex == -1)
+                return;
+
+            var cell = _self.Cells[_self.userPos[uIndex].x][_self.userPos[uIndex].y];
+            moveUI(uIndex, cell, dir)
             e.preventDefault(); // prevent the default action (scroll / move caret)
         };
+        
     }
     init(size);
 
-    function moveUI(cell, dir) {
+    function moveUI(uIndex, cell, dir) {
         if (!(cell.connectionsMask & dir))
             return;
 
@@ -112,71 +204,92 @@ function Maze(canvas, size) {
         }
 
         // Check for undo
-        if (_self.userPath.length > 1)
+        var uPath = _self.userPath[uIndex];
+        var uPos = _self.userPos[uIndex];
+        if (uPath.length > 1)
         {
-            var lastPoint = _self.userPath[_self.userPath.length - 2];
+            var lastPoint = uPath[uPath.length - 2];
             if (lastPoint.x == nextX && lastPoint.y == nextY)
             {
-                _self.userPath.pop();
-                _self.userX = nextX;
-                _self.userY = nextY;
-                drawUserPath();
+                uPath.pop();
+                uPos.x = nextX;
+                uPos.y = nextY;
+                drawUserPath(uIndex);
                 return;
             }
         }
 
         // check if path exists already
-        for (var point in _self.userPath)
+        for (var point in uPath)
         {
-            var p = _self.userPath[point];
+            var p = uPath[point];
             if (p.x == nextX && p.y == nextY)
                 return;
         }
 
         var nextPoint = new Point(nextX, nextY);
 
-        if (nextX != _self.totalUnitsX-1 || nextY != _self.totalUnitsY-1) {
-            var ctx = _self.ui.getContext("2d");
-            ctx.lineWidth = _self.lineWidth;
-            ctx.lineCap = "round";
-            animate(ctx, new Point(_self.userX * _self.boxSize + _self.midOffset, _self.userY * _self.boxSize + _self.midOffset), new Point(nextX * _self.boxSize + _self.midOffset, nextY * _self.boxSize + _self.midOffset));
+        //if (nextX != _self.totalUnitsX-1 || nextY != _self.totalUnitsY-1) {
+        //    var ctx = _self.userCanvas[uIndex].getContext("2d");
+        //    var playerOffset = _self.userOffset[uIndex];
+        //    ctx.lineWidth = _self.userLineWidth;
+        //    ctx.lineCap = "round";
+        //    animate(ctx, new Point(uPos.x * _self.boxSize + playerOffset, uPos.y * _self.boxSize + playerOffset), new Point(nextX * _self.boxSize + playerOffset, nextY * _self.boxSize + playerOffset));
 
-            _self.userX = nextX;
-            _self.userY = nextY;
-            _self.userPath.push(nextPoint);
-        } else {
+        //    uPos.x = nextX;
+        //    uPos.y = nextY;
+        //    uPath.push(nextPoint);
+        //} else {
 
-            _self.userX = nextX;
-            _self.userY = nextY;
-            _self.userPath.push(nextPoint);
-            drawUserPath();
-        }
+            uPos.x = nextX;
+            uPos.y = nextY;
+            uPath.push(nextPoint);
+            drawUserPath(uIndex);
+        //}
     }
 
-    function drawUserPath() {
+    function drawUserPath(uIndex) {
+        var uiCanvas = _self.userCanvas[uIndex];
+        var color = COLORS[uIndex];
+        var r = _self.circleR;
+        var playerOffset = _self.userOffset[uIndex];
 
-        var ctx = _self.ui.getContext("2d");
-        ctx.clearRect(0, 0, _self.ui.width, _self.ui.height);
-        ctx.beginPath();
+        var ctx = uiCanvas.getContext("2d");
+        ctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+                        
         // draw start
-        ctx.lineWidth = _self.lineWidth;
+        ctx.beginPath();
+        ctx.lineWidth = _self.userLineWidth;
         ctx.lineCap = "round";
-        ctx.moveTo(0, 0);
+        ctx.moveTo(r, r);
 
         var p;
         // draw user path
-        for (var point in _self.userPath) {
-            p = _self.userPath[point];
-            ctx.lineTo(p.x * _self.boxSize + _self.midOffset, p.y * _self.boxSize + _self.midOffset);
+        var uPath = _self.userPath[uIndex];
+        var shift = r + playerOffset;
+        for (var point in uPath) {
+            p = uPath[point];
+            //if (_self.numPlayers != 1 && point == 0 && uIndex == 0)
+            //    ctx.lineTo(p.x * _self.boxSize + shift - _self.userLineWidth, p.y * _self.boxSize + shift);
+            //else
+                ctx.lineTo(p.x * _self.boxSize + shift, p.y * _self.boxSize + shift);
         }
         
         if (_self.Cells[p.x][p.y].isEnd) {
-            ctx.lineTo((p.x + 1) * _self.boxSize, (p.y + 1) * _self.boxSize);
+            ctx.lineTo((p.x + 1) * _self.boxSize + r, (p.y + 1) * _self.boxSize + r);
             _self.isSolved = true;
         }
 
-        ctx.strokeStyle = 'orange';
+        ctx.strokeStyle = color;
         ctx.stroke();
+        
+        if (_self.isSolved) {
+            // draw end circle
+            ctx.beginPath();
+            ctx.arc(_self.totalUnitsX * _self.boxSize + r, _self.totalUnitsY * _self.boxSize + r, r, 0, 2 * Math.PI, false);
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
     }
         
 // METHODS
@@ -234,24 +347,32 @@ function Maze(canvas, size) {
 
     function _draw() {
         var c = _self.canvas;
-
-        var mazeHeight = _self.totalUnitsY * _self.boxSize;
-        var mazeWidth = _self.totalUnitsX * _self.boxSize;
-
-        // Set Canvas width and height;
-        c.height = mazeHeight;
-        c.width = mazeWidth;
+        var r = _self.circleR;
 
         // draw maze
         var ctx = c.getContext("2d");
-        ctx.lineWidth = _self.lineWidth;
+        ctx.clearRect(0, 0, c.width, c.height);
 
+        // draw start circle
+        ctx.beginPath();
+        ctx.arc(r, r, r, 0, 2 * Math.PI, false);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+
+        // draw end circle
+        ctx.beginPath();
+        ctx.arc(_self.totalUnitsX * _self.boxSize + r, _self.totalUnitsY * _self.boxSize + r, r, 0, 2 * Math.PI, false);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+
+        // draw maze
+        ctx.lineWidth = _self.lineWidth;
         for (var x = 0; x < _self.totalUnitsX; x++) {
             for (var y = 0; y < _self.totalUnitsY; y++) {
                 _self.RenderBox(
                     ctx,
-                    x * _self.boxSize + _self.midOffset,
-                    y * _self.boxSize + _self.midOffset,
+                    x * _self.boxSize + _self.midOffset + r,
+                    y * _self.boxSize + _self.midOffset + r,
                     _self.Cells[x][y]
                 );
             }
@@ -398,8 +519,8 @@ function Maze(canvas, size) {
         var xUnit = Math.floor(x / _self.boxSize);
         var yUnit = Math.floor(y / _self.boxSize);
         
-        var anchorX = xUnit * _self.boxSize;
-        var anchorY = yUnit * _self.boxSize;
+        var anchorX = xUnit * _self.boxSize + _self.circleR;
+        var anchorY = yUnit * _self.boxSize + _self.circleR;
 
         var ctx = canvas.getContext("2d");
         // erase
@@ -454,8 +575,8 @@ function Maze(canvas, size) {
                     cell.Spawn();
                 }
 
-                var anchorX = x * _self.boxSize;
-                var anchorY = y * _self.boxSize;
+                var anchorX = x * _self.boxSize + _self.circleR;
+                var anchorY = y * _self.boxSize + _self.circleR;
                 ctx.clearRect(anchorX, anchorY, _self.boxSize, _self.boxSize);
 
                 _self.RenderBox(

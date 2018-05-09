@@ -4,6 +4,18 @@ var BOTTOM = 4;
 var LEFT = 8;
 var OPTIONS = [TOP, RIGHT, BOTTOM, LEFT];
 
+var CONTROLS = new Array(4);
+CONTROLS[0] = { left: 37, right: 39, up: 38, down: 40 };
+CONTROLS[1] = { left: 65, right: 68, up: 87, down: 83 };
+CONTROLS[2] = { left: 74, right: 76, up: 73, down: 75 };
+CONTROLS[3] = { left: 100, right: 102, up: 104, down: 101 };
+
+var COLORS = new Array(4);
+COLORS[0] = 'rgba(255,128,0,1)'; // orange
+COLORS[1] = 'rgba(128,255,0,1)'; // lime
+COLORS[2] = 'rgba(127,0,255,1)'; // purple
+COLORS[3] = 'rgba(255,0,0,1)'; // red
+
 function OPPOSITE(dir) {
     switch (dir) {
         case TOP: return BOTTOM;
