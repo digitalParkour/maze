@@ -5,10 +5,16 @@ var LEFT = 8;
 var OPTIONS = [TOP, RIGHT, BOTTOM, LEFT];
 
 var CONTROLS = new Array(4);
-CONTROLS[0] = { left: 37, right: 39, up: 38, down: 40 };
-CONTROLS[1] = { left: 65, right: 68, up: 87, down: 83 };
-CONTROLS[2] = { left: 74, right: 76, up: 73, down: 75 };
-CONTROLS[3] = { left: 100, right: 102, up: 104, down: 101 };
+CONTROLS[0] = { left: 37, right: 39, up: 38, down: 40, go: 190, back: 188 };
+CONTROLS[1] = { left: 65, right: 68, up: 87, down: 83, go: 69, back: 81 };
+CONTROLS[2] = { left: 74, right: 76, up: 73, down: 75, go: 79, back: 85 };
+CONTROLS[3] = { left: 100, right: 102, up: 104, down: 101, go: 105, back: 103 };
+
+var USERS = new Array(4);
+USERS[0] = { goDir: RIGHT, nextDir: RIGHT, isMoving: false, isRewinding: false, x:0, y:0 };
+USERS[1] = { goDir: RIGHT, nextDir: RIGHT, isMoving: false, isRewinding: false, x: 0, y: 0 };
+USERS[2] = { goDir: RIGHT, nextDir: RIGHT, isMoving: false, isRewinding: false, x: 0, y: 0 };
+USERS[3] = { goDir: RIGHT, nextDir: RIGHT, isMoving: false, isRewinding: false, x: 0, y: 0 };
 
 var COLORS = new Array(4);
 COLORS[0] = 'rgba(255,128,0,1)'; // orange
@@ -77,50 +83,13 @@ function calcWaypoints(vertices) {
     return (waypoints);
 }
 
-function animate(ctx, fromPoint, toPoint) {
-    TWEEN.stop = true;
-    var wasTweening = false;
-    var curPoint;
-    var lastPoint;
-    if (TWEEN.i && TWEEN.points) {
-        var c = TWEEN.i;
-        if (c < TWEEN.points.length) {
-            var curPoint = TWEEN.points[TWEEN.i];
-            var lastPoint = TWEEN.points[TWEEN.points.length - 1];
-            wasTweening = true;
-        }        
-    }
-    TWEEN.i = 1;
-    TWEEN.points = calcWaypoints([fromPoint, toPoint]);
-    if (wasTweening) {
-        TWEEN.points.unshift(lastPoint);
-        TWEEN.points.unshift(curPoint);
-    }
-    TWEEN.ctx = ctx;
 
-    TWEEN.stop = false;
-    tween();
+// p = point (x,y)
+// a = angle in radians
+// o = offset
+function transformPoint(p, a, o = 0) {
+    return new Point(
+        (p.x * Math.cos(a)) - (p.y * Math.sin(a)) + o,
+        (p.x * Math.sin(a)) + (p.y * Math.cos(a)) + o
+    );
 }
-
-function tween() {
-    if (TWEEN.stop)
-        return;
-    var t = TWEEN.i;
-    if (t < TWEEN.points.length - 1) { requestAnimationFrame(tween); }
-
-    if (TWEEN.stop)
-        return;
-
-    // draw a line segment from the last waypoint
-    // to the current waypoint
-    var ctx = TWEEN.ctx;
-    var points = TWEEN.points;
-    ctx.beginPath();
-    ctx.moveTo(points[t - 1].x, points[t - 1].y);
-    ctx.lineTo(points[t].x, points[t].y);
-    ctx.stroke();
-    // increment "t" to get the next waypoint
-    TWEEN.i++;
-}
-
-var TWEEN = {};

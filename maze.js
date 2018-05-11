@@ -8,6 +8,7 @@ function Maze(canvas, size, players) {
     _self.userPath = [];
     _self.userPos = [];
     _self.userOffset = [];
+    _self.userSpeed = 10;
 
     _self.numPlayers = players;
 
@@ -102,20 +103,24 @@ function Maze(canvas, size, players) {
         ctx.beginPath();
         ctx.arc(r, r, r, 0, 2 * Math.PI, false);
         ctx.clip();
+
+        var d = Math.ceil(2 * r / _self.numPlayers);
+        var rotate = -Math.PI * 3 / 4;
         for (var u = 0; u < _self.numPlayers; u++) {
-        // draw blue circle inside clipping region
+            
+            var a1 = transformPoint(new Point(-r + u * d, -r), rotate, r);
+            var a2 = transformPoint(new Point(-r + u * d, r), rotate, r);
+            var a3 = transformPoint(new Point(-r + (u+1) * d, r), rotate, r);
+            var a4 = transformPoint(new Point(-r + (u+1) * d, -r), rotate, r);
+            
             ctx.beginPath();
-            var wide = _self.userLineWidth * 3;
-            ctx.lineWidth = wide;
-            var offset = Math.floor(((-1 * _self.numPlayers * wide) + (u * _self.numPlayers * wide)) / 1.5);
-            if (u == 2) {
-                offset = -r;
-                ctx.lineWidth = _self.userLineWidth * 2.5;
-            }
-            ctx.moveTo(-r , offset);
-            ctx.lineTo(4 * r -r, 4 * r + offset);
-            ctx.strokeStyle = COLORS[u];
-            ctx.stroke();
+            ctx.moveTo(a1.x, a1.y);
+            ctx.lineTo(a2.x, a2.y);
+            ctx.lineTo(a3.x, a3.y);
+            ctx.lineTo(a4.x, a4.y);
+            ctx.closePath();
+            ctx.fillStyle = COLORS[u];
+            ctx.fill();
         }
         
         /*
@@ -145,107 +150,221 @@ function Maze(canvas, size, players) {
             e = e || window.event;
             if (_self.isSolved)
                 return;
-            var uIndex = -1;
-            var dir;
             var key = e.which || e.keyCode;
+            var isAction = false;
             loopUsers:
             for (var u = 0; u < _self.numPlayers; u++)
             {
                 switch (key) {
                     case CONTROLS[u].left: // left
-                        uIndex = u;
-                        dir = LEFT;
+                        USERS[u].nextDir = LEFT;
+                        isAction = true;
                         break loopUsers;
 
                     case CONTROLS[u].up: // up
-                        uIndex = u;
-                        dir = TOP;
+                        USERS[u].nextDir = TOP;
+                        isAction = true;
                         break loopUsers;
 
                     case CONTROLS[u].right: // right
-                        uIndex = u;
-                        dir = RIGHT;
+                        USERS[u].nextDir = RIGHT;
+                        isAction = true;
                         break loopUsers;
 
                     case CONTROLS[u].down: // down
-                        uIndex = u;
-                        dir = BOTTOM;
+                        USERS[u].nextDir = BOTTOM;
+                        isAction = true;
+                        break loopUsers;
+
+                    case CONTROLS[u].go: // go
+                        USERS[u].isRewinding = 0;
+                        USERS[u].isMoving = 1;
+                        isAction = true;
+                        break loopUsers;
+
+                    case CONTROLS[u].back: // back
+                        rewindUser(u);
+                        isAction = true;
                         break loopUsers;
                 }
             }
-            
-            if (uIndex == -1)
-                return;
 
-            var cell = _self.Cells[_self.userPos[uIndex].x][_self.userPos[uIndex].y];
-            moveUI(uIndex, cell, dir)
-            e.preventDefault(); // prevent the default action (scroll / move caret)
+            if (isAction)
+                e.preventDefault(); // prevent the default action (scroll / move caret)
         };
-        
+
+        document.onkeyup = function (e) {
+            e = e || window.event;
+            if (_self.isSolved)
+                return;
+            var key = e.which || e.keyCode;
+
+            for (var u = 0; u < _self.numPlayers; u++) {
+                if (key == CONTROLS[u].go) {
+                    USERS[u].isMoving = 0;
+                    e.preventDefault();
+                    return;
+                }
+            }
+        };
+
+        tweenUI();
     }
     init(size);
 
-    function moveUI(uIndex, cell, dir) {
-        if (!(cell.connectionsMask & dir))
-            return;
 
-        var guy = getNeighbor(cell, dir);
-        if (!(guy.connectionsMask & OPPOSITE(dir)))
-            return;
+    function tweenUI() {
+        requestAnimationFrame(tweenUI);
 
-        var nextX = cell.xUnit;
-        var nextY = cell.yUnit;
-
-        switch (dir) {
-            case TOP: nextY--; break;
-            case BOTTOM: nextY++; break;
-            case LEFT: nextX--; break;
-            case RIGHT: nextX++; break;
+        for (var u = 0; u < _self.numPlayers; u++) {
+            if (USERS[u].isMoving)
+                moveUser(u);
         }
-
-        // Check for undo
-        var uPath = _self.userPath[uIndex];
+    }
+    
+    function moveUser(uIndex) {
         var uPos = _self.userPos[uIndex];
-        if (uPath.length > 1)
-        {
-            var lastPoint = uPath[uPath.length - 2];
-            if (lastPoint.x == nextX && lastPoint.y == nextY)
-            {
-                uPath.pop();
-                uPos.x = nextX;
-                uPos.y = nextY;
-                drawUserPath(uIndex);
-                return;
-            }
+        var uPath = _self.userPath[uIndex];
+        var cell = _self.Cells[uPos.x][uPos.y];
+        var r = _self.circleR;
+        var playerOffset = _self.userOffset[uIndex];
+        var shift = r + playerOffset;
+        var c = new Point(cell.xUnit * _self.boxSize + shift, cell.yUnit * _self.boxSize + shift);
+        //if (c.x == u.x && c.y == u.y)
+        //    return;
+
+        var uiCanvas = _self.userCanvas[uIndex];
+        var color = COLORS[uIndex];
+        var ctx = uiCanvas.getContext("2d");
+        ctx.lineWidth = _self.userLineWidth;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+
+        var u = USERS[uIndex];
+        if (u.x <= 0) {
+            u.x = shift;
+            u.y = shift;
         }
+
+        ctx.moveTo(u.x, u.y);
+        var s = _self.userSpeed;
+        var m = _self.midOffset;
+        var t = new Point(u.x, u.y); // projected target (unless we need to turn)
+
+        // handle turn
+        var isTurn = false;
+        var canTurn = u.goDir != u.nextDir && OPPOSITE(u.goDir) != u.nextDir && (cell.connectionsMask & u.nextDir);
 
         // check if path exists already
-        for (var point in uPath)
-        {
-            var p = uPath[point];
-            if (p.x == nextX && p.y == nextY)
-                return;
+        //for (var point in uPath) {
+        //    var p = uPath[point];
+        //    if (p.x == nextX && p.y == nextY)
+        //        return;
+        //}
+
+        switch (u.goDir) {
+            case TOP:
+                t.y -= s;
+                if (canTurn && u.y >= c.y && t.y < c.y) {
+                    isTurn = true;
+                    s = c.y - t.y;
+                } else if (t.y <= c.y - m){
+                    uPos.y--;
+                    uPath.push(new Point(uPos.x, uPos.y));
+                }                
+                break;
+            case BOTTOM:
+                t.y += s;
+                if (canTurn && u.y <= c.y && t.y > c.y) {
+                    isTurn = true;
+                    s = t.y - c.y;
+                } else if (t.y >= c.y + m) {
+                    uPos.y++;
+                    uPath.push(new Point(uPos.x, uPos.y));
+                }              
+                break;
+            case LEFT:
+                t.x -= s;
+                if (canTurn && u.x >= c.x && t.x < c.x) {
+                    isTurn = true;
+                    s = c.x - t.x;
+                } else if (t.x <= c.x - m) {
+                    uPos.x--;
+                    uPath.push(new Point(uPos.x, uPos.y));
+                }              
+                break;
+            case RIGHT:
+                t.x += s;
+                if (canTurn && u.x <= c.x && t.x > c.x) {
+                    isTurn = true;
+                    s = t.x - c.x;
+                } else if (t.x >= c.x + m) {
+                    uPos.x++;
+                    uPath.push(new Point(uPos.x, uPos.y));
+                }              
+                break;
+        }
+        if (isTurn) {
+            ctx.lineTo(c.x, c.y);
+            u.goDir = u.nextDir;
+            switch (u.goDir) {
+                case TOP:
+                    t.x = c.x;
+                    t.y -= s;
+                    break;
+                case BOTTOM:
+                    t.x = c.x;
+                    t.y += s;
+                    break;
+                case LEFT:
+                    t.x -= s;
+                    t.y = c.y;
+                    break;
+                case RIGHT:
+                    t.x += s;
+                    t.y = c.y;
+                    break;
+            }
+        } else if (!(cell.connectionsMask & u.goDir)) {
+            t.x = c.x;
+            t.y = c.y;
         }
 
-        var nextPoint = new Point(nextX, nextY);
+        ctx.lineTo(t.x, t.y);
+        ctx.strokeStyle = color;
+        ctx.stroke();
+        u.x = t.x;
+        u.y = t.y;
 
-        //if (nextX != _self.totalUnitsX-1 || nextY != _self.totalUnitsY-1) {
-        //    var ctx = _self.userCanvas[uIndex].getContext("2d");
-        //    var playerOffset = _self.userOffset[uIndex];
-        //    ctx.lineWidth = _self.userLineWidth;
-        //    ctx.lineCap = "round";
-        //    animate(ctx, new Point(uPos.x * _self.boxSize + playerOffset, uPos.y * _self.boxSize + playerOffset), new Point(nextX * _self.boxSize + playerOffset, nextY * _self.boxSize + playerOffset));
+        if (_self.isSolved) {
+            // draw end circle
+            ctx.beginPath();
+            ctx.arc(_self.totalUnitsX * _self.boxSize + r, _self.totalUnitsY * _self.boxSize + r, r, 0, 2 * Math.PI, false);
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+    }
 
-        //    uPos.x = nextX;
-        //    uPos.y = nextY;
-        //    uPath.push(nextPoint);
-        //} else {
-
-            uPos.x = nextX;
-            uPos.y = nextY;
-            uPath.push(nextPoint);
-            drawUserPath(uIndex);
-        //}
+    function rewindUser(uIndex) {
+        var uPos = _self.userPos[uIndex];
+        var cell = _self.Cells[uPos.x][uPos.y];
+        
+        var uPath = _self.userPath[uIndex];
+        var uPos = _self.userPos[uIndex];
+        if (uPath.length <= 1)
+            return;    
+        
+        uPath.pop();
+        var unit = uPath[uPath.length - 1];
+        uPos.x = unit.x;
+        uPos.y = unit.y;
+        var u = USERS[uIndex];
+        var playerOffset = _self.userOffset[uIndex];
+        var shift = _self.circleR + playerOffset;
+        u.x = unit.x * _self.boxSize + shift;
+        u.y = unit.y * _self.boxSize + shift;
+        drawUserPath(uIndex);        
+                
     }
 
     function drawUserPath(uIndex) {
