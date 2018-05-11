@@ -8,7 +8,7 @@ function Maze(canvas, size, players) {
     _self.userPath = [];
     _self.userPos = [];
     _self.userOffset = [];
-    _self.userSpeed = 10;
+    _self.userSpeed = 5;
 
     _self.numPlayers = players;
 
@@ -157,22 +157,45 @@ function Maze(canvas, size, players) {
             {
                 switch (key) {
                     case CONTROLS[u].left: // left
-                        USERS[u].nextDir = LEFT;
+                        USERS[u].nextDir = LEFT;                        
+                        if (!USERS[u].isMoving) {
+                            if (USERS[u].goDir == RIGHT)
+                                rewindUser(u);
+                            else
+                                moveUser(u);
+                        }
                         isAction = true;
                         break loopUsers;
 
                     case CONTROLS[u].up: // up
                         USERS[u].nextDir = TOP;
-                        isAction = true;
+                        if (!USERS[u].isMoving) {
+                            if (USERS[u].goDir == BOTTOM)
+                                rewindUser(u);
+                            else
+                                moveUser(u);
+                        }isAction = true;
                         break loopUsers;
 
                     case CONTROLS[u].right: // right
                         USERS[u].nextDir = RIGHT;
+                        if (!USERS[u].isMoving) {
+                            if (USERS[u].goDir == LEFT)
+                                rewindUser(u);
+                            else
+                                moveUser(u);
+                        }
                         isAction = true;
                         break loopUsers;
 
                     case CONTROLS[u].down: // down
                         USERS[u].nextDir = BOTTOM;
+                        if (!USERS[u].isMoving) {
+                            if (USERS[u].goDir == TOP)
+                                rewindUser(u);
+                            else
+                                moveUser(u);
+                        }
                         isAction = true;
                         break loopUsers;
 
@@ -255,22 +278,19 @@ function Maze(canvas, size, players) {
         var isTurn = false;
         var canTurn = u.goDir != u.nextDir && OPPOSITE(u.goDir) != u.nextDir && (cell.connectionsMask & u.nextDir);
 
-        // check if path exists already
-        //for (var point in uPath) {
-        //    var p = uPath[point];
-        //    if (p.x == nextX && p.y == nextY)
-        //        return;
-        //}
-
         switch (u.goDir) {
             case TOP:
                 t.y -= s;
                 if (canTurn && u.y >= c.y && t.y < c.y) {
                     isTurn = true;
                     s = c.y - t.y;
-                } else if (t.y <= c.y - m){
-                    uPos.y--;
-                    uPath.push(new Point(uPos.x, uPos.y));
+                } else if (t.y <= c.y - m) {
+                    if (alreadyBeenHere(uIndex, uPos.x, uPos.y - 1)) {
+                        t.y = c.y;
+                    } else {
+                        uPos.y--;
+                        uPath.push(new Point(uPos.x, uPos.y));
+                    }
                 }                
                 break;
             case BOTTOM:
@@ -279,8 +299,12 @@ function Maze(canvas, size, players) {
                     isTurn = true;
                     s = t.y - c.y;
                 } else if (t.y >= c.y + m) {
-                    uPos.y++;
-                    uPath.push(new Point(uPos.x, uPos.y));
+                    if (alreadyBeenHere(uIndex, uPos.x, uPos.y + 1)) {
+                        t.y = c.y;
+                    } else {
+                        uPos.y++;
+                        uPath.push(new Point(uPos.x, uPos.y));
+                    }
                 }              
                 break;
             case LEFT:
@@ -289,8 +313,12 @@ function Maze(canvas, size, players) {
                     isTurn = true;
                     s = c.x - t.x;
                 } else if (t.x <= c.x - m) {
-                    uPos.x--;
-                    uPath.push(new Point(uPos.x, uPos.y));
+                    if (alreadyBeenHere(uIndex, uPos.x - 1, uPos.y)) {
+                        t.x = c.x;
+                    } else {
+                        uPos.x--;
+                        uPath.push(new Point(uPos.x, uPos.y));
+                    }
                 }              
                 break;
             case RIGHT:
@@ -299,8 +327,12 @@ function Maze(canvas, size, players) {
                     isTurn = true;
                     s = t.x - c.x;
                 } else if (t.x >= c.x + m) {
-                    uPos.x++;
-                    uPath.push(new Point(uPos.x, uPos.y));
+                    if (alreadyBeenHere(uIndex, uPos.x + 1, uPos.y)) {
+                        t.x = c.x;
+                    } else {
+                        uPos.x++;
+                        uPath.push(new Point(uPos.x, uPos.y));
+                    }
                 }              
                 break;
         }
@@ -331,18 +363,27 @@ function Maze(canvas, size, players) {
         }
 
         ctx.lineTo(t.x, t.y);
+
+        if (_self.Cells[uPos.x][uPos.y].isEnd) {
+            drawUserPath(uIndex);
+            return;
+        }
+
         ctx.strokeStyle = color;
         ctx.stroke();
         u.x = t.x;
         u.y = t.y;
-
-        if (_self.isSolved) {
-            // draw end circle
-            ctx.beginPath();
-            ctx.arc(_self.totalUnitsX * _self.boxSize + r, _self.totalUnitsY * _self.boxSize + r, r, 0, 2 * Math.PI, false);
-            ctx.fillStyle = color;
-            ctx.fill();
+        
+    }
+    function alreadyBeenHere(uIndex, xUnit, yUnit) {
+        // check if path exists already
+        var uPath = _self.userPath[uIndex];
+        for (var point in uPath) {
+            var p = uPath[point];
+            if (p.x == xUnit && p.y == yUnit)
+                return true;
         }
+        return false;
     }
 
     function rewindUser(uIndex) {
